@@ -44,7 +44,7 @@ params = ['AHR2','ATT','BARO_0','BAT_0','GPS_0','XKF1_0','RATE','RCOU']
 ## Reading Flight from excel files
 
 # Path to Excel file 
-excel_file = os.path.join(cwd,'Rajali_oct25.xlsx')
+excel_file = os.path.join(cwd,inputs['path']['excel_file'])
 
 # Read Excel (expects headers: 'Sensor file', 'Log file') 
 df = pd.read_excel(excel_file)
@@ -95,14 +95,21 @@ for i, (s, l) in zip(rows, cases):
 
 def process_case(sen_filename, log_filename):
 
-    sen_file = os.path.join(sen_path,sen_filename) #sen_path + '\\' + sen_filename
-    # log_file = log_path + '\\' + log_filename
+    sen_file = os.path.join(sen_path,sen_filename)
     log_file='//'.join(log_path.split('\\')[:]) + '//' + log_filename
 
-    sen_data = senlab.tsm_data_simple(sen_file)
+    try:
+        sen_data = senlab.tsm_data_simple(sen_file)
+    except:
+        raise Exception('sensor file is not present')
+
     sen_data_inter = senlab.read_csv_interp(sen_file, 5, 10)
 
-    data = mavlab.data(log_file, params)
+    try:
+        data = mavlab.data(log_file, params)
+    except:
+        raise Exception('log file is not present')
+
     time = mavlab.timedata_gpscor(log_file, params)
 
     # sen_time = np.array(sen_data['Time Stamp'])
