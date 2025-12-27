@@ -4,3 +4,5 @@
 *.mod
 *.dat
 *.pyc
+cases/rajali_2025/log_matlab_files
+cases/rajali_2025/sensor_files
