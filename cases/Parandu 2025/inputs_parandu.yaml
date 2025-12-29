@@ -1,0 +1,25 @@
+Inputs:
+    
+    # paths are relative to the present folder
+    path:
+        sen_path: 'sensor file path'
+        log_path: 'log file path'
+        excel_file: 'parandu_dec25.xlsx'
+
+    # this is the range of cases to be investigated 
+    # corresponds to the cases in the excel_file mentioned above
+    case_list: '4-7'
+
+    # some user controls for plotting
+    plotter:
+
+        # if this boolean is set to true, then the min and max time
+        # for the plots are chosen from the case file
+        auto_time: True
+
+        # only valid if the above is false
+        # enter the min and max time in the below format
+        # [year, month, day, hour, minute, second]
+        min_time: [2025,12,12,0,0,0]
+        max_time: [2025,12,13,0,0,0]
+        
