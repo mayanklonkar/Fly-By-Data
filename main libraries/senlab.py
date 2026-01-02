@@ -23,6 +23,7 @@ import numpy as np
 from tqdm import tqdm
 from scipy.ndimage import median_filter
 from scipy.interpolate import interp1d
+from scipy.interpolate import PchipInterpolator
 
 
 # ---------------------- TRISONICA MINI ----------------------
@@ -111,6 +112,7 @@ def multiple_tsm_data_offset(datafiles,offsets,lengths):
 # 'true_sampling_rate'(type: float): observed sampling rate
 # 'converted_sampling_rate'(type: float): target sampling rate
 # MAINLY USED FOR FT-742 SM SENSOR FILE AND INTERPOLATE DATA TO 10HZ (to align with flight data)
+
 def read_csv_interp(sensorfile,true_sampling_rate,converted_sampling_rate):
     sensordata = pd.read_csv(sensorfile, encoding='unicode_escape')
     labels = ((sensordata.columns[1:4]).tolist() + (sensordata.columns[5:10]).tolist())
@@ -123,10 +125,21 @@ def read_csv_interp(sensorfile,true_sampling_rate,converted_sampling_rate):
         filtered_data[col] = median_filter(ws, size=29)
 
     def custom_interp(data_b, converted_sampling_rate):
+        # time_b = np.arange(len(data_b)) / true_sampling_rate
+        # df_b = pd.DataFrame({'time': time_b, 'data': data_b})
+        # f_interp = interp1d(df_b['time'], df_b['data'], kind='linear', fill_value='extrapolate')
+        # time_common = np.arange(len(data_b) * 2) / converted_sampling_rate 
+        # data_b_resampled = f_interp(time_common)
+        # return np.array(data_b_resampled)
+
         time_b = np.arange(len(data_b)) / true_sampling_rate
-        df_b = pd.DataFrame({'time': time_b, 'data': data_b})
-        f_interp = interp1d(df_b['time'], df_b['data'], kind='linear', fill_value='extrapolate')
-        time_common = np.arange(len(data_b) * 2) / converted_sampling_rate 
+
+        # Create PCHIP interpolator
+        f_interp = PchipInterpolator(time_b, data_b, extrapolate=True)
+
+        # New time axis (as in your original code)
+        time_common = np.arange(len(data_b) * 2) / converted_sampling_rate
+
         data_b_resampled = f_interp(time_common)
         return np.array(data_b_resampled)
 
@@ -136,6 +149,9 @@ def read_csv_interp(sensorfile,true_sampling_rate,converted_sampling_rate):
 
     sensordata = pd.DataFrame(interpolated_data)
     return sensordata
+
+
+
 
 
 # ---------------------------------------------------------------
