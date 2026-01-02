@@ -82,37 +82,108 @@ def multiple_data(datafiles,params):
 
 
 # load 'timedata' from parameters listed in 'params'(type: list of string elements) from a SINGLE file 'datafile'(type: string)
-def timedata_gpscor(datafile,params):
+# def timedata_gpscor(datafile,params):
     
-    # EXAMPLE:
-    # datafile = '2023-11-28 10-47-30.bin-363701.mat'
-    # params = ['AHR2','ATT','BARO_0','BAT_0','GPS_0','IMU_0','MODE','POS','RATE','RCOU','TERR','VIBE_0','XKF1_0']
+#     # EXAMPLE:
+#     # datafile = '2023-11-28 10-47-30.bin-363701.mat'
+#     # params = ['AHR2','ATT','BARO_0','BAT_0','GPS_0','IMU_0','MODE','POS','RATE','RCOU','TERR','VIBE_0','XKF1_0']
+
+#     import warnings
+#     warnings.filterwarnings('ignore')
+    
+#     data = loadmat(datafile)
+
+#     flightdatetime = datetime.datetime.strptime(datafile.split("//")[-1][0:19], '%Y-%m-%d %H-%M-%S')
+#     missionstarttime = flightdatetime + datetime.timedelta(microseconds=data['AHR2'][0,1])
+
+#     time = {}
+
+#     basedate = datetime.datetime.strptime('1980-01-06','%Y-%m-%d')
+
+#     d1 = basedate + datetime.timedelta(weeks = data['GPS_0'][0,5]) + datetime.timedelta(milliseconds = data['GPS_0'][0,4]) + datetime.timedelta(minutes= 330)
+#     d2 = flightdatetime + datetime.timedelta(microseconds = data['AHR2'][0,1])
+
+#     diff = d2 - d1
+
+#     for i in tqdm(range(0,len(params)), desc="Loading Time Data from Log File\t\t", ncols=100, bar_format='{l_bar}{bar}'):
+#         time[str(params[i])] = []
+#         for j in range(len(data[str(params[i])])):
+#             # time[str(params[i])].append(str((missionstarttime + datetime.timedelta(microseconds=data[str(params[i])][j,1])).time()))
+#             time[str(params[i])].append((flightdatetime + datetime.timedelta(microseconds=data[str(params[i])][j,1]) - diff))
+#         time[str(params[i])] = np.array(time[str(params[i])])
+
+#     return time
+
+def timedata_gpscor(datafile, params):
 
     import warnings
     warnings.filterwarnings('ignore')
-    
+
+    import os, re, datetime
+    import numpy as np
+    from scipy.io import loadmat
+    from tqdm import tqdm
+
     data = loadmat(datafile)
 
-    flightdatetime = datetime.datetime.strptime(datafile.split("//")[-1][0:19], '%Y-%m-%d %H-%M-%S')
-    missionstarttime = flightdatetime + datetime.timedelta(microseconds=data['AHR2'][0,1])
+    # ---------- Try to get datetime from filename ----------
+    fname = os.path.basename(datafile)
 
-    time = {}
+    m = re.search(r'\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}', fname)
 
-    basedate = datetime.datetime.strptime('1980-01-06','%Y-%m-%d')
+    if m:
+        flightdatetime = datetime.datetime.strptime(
+            m.group(), '%Y-%m-%d %H-%M-%S'
+        )
+    else:
+        # ---------- Fallback: use GPS time ----------
+        basedate = datetime.datetime.strptime('1980-01-06', '%Y-%m-%d')
+        d1 = (basedate
+              + datetime.timedelta(weeks=float(data['GPS_0'][0, 5]))
+              + datetime.timedelta(milliseconds=float(data['GPS_0'][0, 4]))
+              + datetime.timedelta(minutes=330))   # IST offset
+        flightdatetime = d1
+        print("⚠️ Filename has no timestamp. Using GPS-based start time.")
 
-    d1 = basedate + datetime.timedelta(weeks = data['GPS_0'][0,5]) + datetime.timedelta(milliseconds = data['GPS_0'][0,4]) + datetime.timedelta(minutes= 330)
-    d2 = flightdatetime + datetime.timedelta(microseconds = data['AHR2'][0,1])
+    # ---------- Mission start from AHR2 ----------
+    missionstarttime = flightdatetime + datetime.timedelta(
+        microseconds=float(data['AHR2'][0, 1])
+    )
+
+    # ---------- GPS vs AHR2 correction ----------
+    basedate = datetime.datetime.strptime('1980-01-06', '%Y-%m-%d')
+
+    d1 = (basedate
+          + datetime.timedelta(weeks=float(data['GPS_0'][0, 5]))
+          + datetime.timedelta(milliseconds=float(data['GPS_0'][0, 4]))
+          + datetime.timedelta(minutes=330))
+
+    d2 = flightdatetime + datetime.timedelta(
+        microseconds=float(data['AHR2'][0, 1])
+    )
 
     diff = d2 - d1
 
-    for i in tqdm(range(0,len(params)), desc="Loading Time Data from Log File\t\t", ncols=100, bar_format='{l_bar}{bar}'):
-        time[str(params[i])] = []
-        for j in range(len(data[str(params[i])])):
-            # time[str(params[i])].append(str((missionstarttime + datetime.timedelta(microseconds=data[str(params[i])][j,1])).time()))
-            time[str(params[i])].append((flightdatetime + datetime.timedelta(microseconds=data[str(params[i])][j,1]) - diff))
-        time[str(params[i])] = np.array(time[str(params[i])])
+    # ---------- Build time dictionary ----------
+    time = {}
+
+    for i in tqdm(range(len(params)),
+                  desc="Loading Time Data from Log File\t\t",
+                  ncols=100, bar_format='{l_bar}{bar}'):
+
+        key = str(params[i])
+        time[key] = []
+
+        for j in range(len(data[key])):
+            t = (flightdatetime
+                 + datetime.timedelta(microseconds=float(data[key][j, 1]))
+                 - diff)
+            time[key].append(t)
+
+        time[key] = np.array(time[key])
 
     return time
+
 
 
 # load 'timedata' from parameters listed in 'params'(type: list of string elements) from MULTIPLE files 'datafile'(type: list of string elements)
