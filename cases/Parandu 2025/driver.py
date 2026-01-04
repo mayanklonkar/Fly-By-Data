@@ -7,8 +7,6 @@
 # Example : "24" or "1-5" for single or range of rows
 #--------------------------------------
 
-# Excel file should include offset to align the sensor and the log data.
-
 
 
 import os,sys
@@ -32,9 +30,11 @@ font={'family':'serif','size':15}
 matplotlib.rc('font',**font)
 
 # read in input yaml file
-with open('inputs_parandu.yaml', 'r') as file:
-    input_file = yaml.safe_load(file)
+# with open('inputs_parandu.yaml', 'r') as file:
+#     input_file = yaml.safe_load(file)
 
+with open(r'C:\Users\Mayank\Desktop\RAJALI 2025\Fly-By-Data-main\cases\parandu_2025\inputs_parandu.yaml', 'r') as file:
+    input_file = yaml.safe_load(file)
 inputs = input_file['Inputs']
 
 # path relative to the current working directory to the sens and log folders
@@ -146,9 +146,12 @@ def process_case(sen_filename, log_filename,Offset):
 
     pressure = np.array(sen_data_inter['Absolute Pressure (TSM) (hPa)'])
     wind = np.array(sen_data_inter['Wind Speed (m/s)'])
-    temp = np.array(sen_data_inter['Temperature (TSM) (C)'])
+    temp_tsm = np.array(sen_data_inter['Temperature (TSM) (C)'])
     alt = -1*np.array(data['XKF1_0']['PD'])
     vel = -np.array(data['XKF1_0']['VD'])
+    temp_aht10 = np.array(sen_data_inter['Temperature (AHT10) (C)'])
+    rh= np.array(sen_data_inter['Relative Humidity (AHT10) (%)'])
+    rh_tsm= np.array(sen_data_inter['Relative Humidity (TSM) (%)'])
 
 
     
@@ -187,7 +190,10 @@ def process_case(sen_filename, log_filename,Offset):
     alt2 = alt[:len(pressure2)]
     vel2 = vel[:len(pressure2)]
     wind2 = wind[n:n+len(alt)]
-    temp2 = temp[n:n+len(alt)]
+    temp_aht10_2 = temp_aht10[n:n+len(alt)]
+    temp_tsm_2 = temp_tsm[n:n+len(alt)]
+    rh2 = rh[n:n+len(alt)]
+    rh_tsm2 = rh_tsm[n:n+len(alt)]
 
     time_main = np.arange(len(alt2)) / 10.0  # 10 Hz
 
@@ -248,6 +254,11 @@ def process_case(sen_filename, log_filename,Offset):
     alt_as = alt2[as_start:as_end]
     wind_as = wind2[as_start:as_end] 
     # temp_as = temp2[as_start:as_end] 
+    # rh_as = rh2[as_start:as_end] 
+    # rh_tsm_as = rh_tsm2[as_start:as_end]
+    # temp_aht10_2_as = temp_aht10_2[as_start:as_end]
+    # temp_tsm_2_as = temp_tsm_2[as_start:as_end]
+
         # ---- case time from log ----
     case_time = time['XKF1_0'][0].replace(microsecond=0)
 
@@ -264,6 +275,10 @@ def process_case(sen_filename, log_filename,Offset):
         'alt_as': alt_as,
         'wind_as': wind_as,
         # 'temp_as': temp_as,
+        # 'rh_as': rh_as,
+        # 'rh_tsm_as': rh_tsm_as,   
+        # 'temp_aht10_2_as': temp_aht10_2_as,
+        # 'temp_tsm_2_as': temp_tsm_2_as,
         'n_hovers': len(des_start),
         'case_time': case_time
 
@@ -276,6 +291,8 @@ for sen_file, log_file, Offset in cases:
     results.append(res)
 
     print(sen_file, "→ hovers:", res['n_hovers'])
+    print(sen_file, "as_start", res['as_start'])
+    print(sen_file, "as_end", res['as_end'])
 
 
 
@@ -345,11 +362,15 @@ with PdfPages('test.pdf') as pdf:
             bbox_transform=ax.transAxes,
             borderpad=0,
         )
-    
+        
+        # Change parameter to be plotted here
+
         ax_in.plot(res['wind_as'], res['alt_as'], lw=2, color='k')
-        #ax_in.plot(res['temp_as'], res['alt_as'], lw=2, color='k')
+        # ax_in.plot(res['temp_tsm_2_as'], res['alt_as'], lw=2, color='k')
+        
+        
         ax_in.plot([xp,xp],[alt_min_plot, alt_max_plot],'--',color='gray',lw=1) # altitude dependent
-        ax_in.set_xlim(0, 25)
+        ax_in.set_xlim(-5, 25)
         ax_in.set_ylim(alt_min_plot, alt_max_plot)
         ax_in.set_frame_on(False)
     
