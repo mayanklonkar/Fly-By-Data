@@ -115,7 +115,7 @@ def multiple_tsm_data_offset(datafiles,offsets,lengths):
 
 def read_csv_interp(sensorfile,true_sampling_rate,converted_sampling_rate):
     sensordata = pd.read_csv(sensorfile, encoding='unicode_escape')
-    labels = ((sensordata.columns[1:4]).tolist() + (sensordata.columns[5:10]).tolist())
+    labels = ((sensordata.columns[1:4]).tolist() + (sensordata.columns[5:15]).tolist())
     # labels = ((sensordata.columns[1:5]).tolist())
 
     filtered_data = {}
