@@ -30,7 +30,7 @@ font={'family':'serif','size':15}
 matplotlib.rc('font',**font)
 
 # read in input yaml file
-with open('inputs.yaml', 'r') as file:
+with open(r"D:\Fly-By-Data\cases\rajali_2025\inputs.yaml", 'r') as file:
     input_file = yaml.safe_load(file)
 
 inputs = input_file['Inputs']
@@ -203,7 +203,7 @@ def process_case(sen_filename, log_filename):
                 as_end = i - 199
                 break
 
-    hov_start, des_start, des_end = [], [], []
+    hov_start,hov_end, des_start, des_end = [], [], [],[]
     k = a = b = 0
     in_hover = False
     in_descent = False
@@ -214,6 +214,7 @@ def process_case(sen_filename, log_filename):
             k += 1
             if k == 50:
                 hov_start.append(i - 49)
+
                 k = 0
                 in_hover = True
         else:
@@ -223,6 +224,7 @@ def process_case(sen_filename, log_filename):
             a += 1
             if a == 20:
                 des_start.append(i - 19)
+                hov_end.append(i - 20)  # Hover ends just before descent starts
                 a = 0
                 in_descent = True
                 in_hover = False
@@ -238,6 +240,7 @@ def process_case(sen_filename, log_filename):
         else:
             b = 0
     
+
     alt_as = alt2[as_start:as_end]
     wind_as = wind2[as_start:as_end] 
     temp_as = temp2[as_start:as_end] 
@@ -245,13 +248,16 @@ def process_case(sen_filename, log_filename):
     case_time = time['XKF1_0'][0].replace(microsecond=0)
 
     return {
-        # 'sensor_file': sen_filename,
+        'sensor_file': sen_filename,
         'log_file': log_filename,
-        # 'hov_start': hov_start,
-        # 'des_start': des_start,
-        # 'des_end': des_end,
-        # 'time': time_main,
-        # 'alt': alt2,
+        'hov_start': hov_start,
+        'hov_end': hov_end,
+        'des_start': des_start,
+        'des_end': des_end,
+        'time': time_main,
+        'alt': alt2,
+        'wind': wind2,
+        'temp': temp2,
         'as_start': as_start,
         'as_end': as_end,
         'alt_as': alt_as,
@@ -260,95 +266,108 @@ def process_case(sen_filename, log_filename):
         'n_hovers': len(des_start),
         'case_time': case_time
 
+
     }
 
-results = []
+if __name__ == "__main__":
 
-for sen_file, log_file in cases:
-    res = process_case(sen_file, log_file)
-    results.append(res)
+    results = []
 
-    print(sen_file, "→ hovers:", res['n_hovers'])
+    for sen_file, log_file in cases:
+        res = process_case(sen_file, log_file)
+        results.append(res)
+
+        print(sen_file, "→ hovers:", res['n_hovers'])
+        
+        print("Hover start indices:", res['hov_start'])
+        print("Hover end indices:", res['hov_end']) 
+
+
+    # Plotting ascent profiles over time 
+
+    with PdfPages('test.pdf') as pdf:
+        fig, ax = plt.subplots(figsize=(20, 6))
+        
+        # ax.set_title('Ascent Wind Profiles over Time')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Altitude (m)')
+        
+        # ---- Y axis: 0–600 every 100 m ----
+        alt_min_plot = 0
+        alt_max_plot = 600
+        ax.set_ylim(alt_min_plot, alt_max_plot)
+        ax.set_yticks(np.arange(alt_min_plot, alt_max_plot + 1, 100))
+        
+        # ---- Build time axis ----
+        case_times = [res['case_time'] for res in results]
+        xvals = mdates.date2num(case_times)
+        
+        tmin = min(case_times).replace(minute=0, second=0, microsecond=0)
+        tmax = (max(case_times) + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        
+        plotter = inputs['plotter']
+        if plotter['auto_time'] == False:
+            min_time = plotter['min_time']
+            time_dict = {'year':min_time[0],'month':min_time[1],'day':min_time[2],'hour':min_time[3],'minute':min_time[4],'second':min_time[5]}
+            tmin=datetime.datetime(**time_dict) #'2025-10-09T15:00:00')
+
+            max_time = plotter['max_time']
+            time_dict = {'year':max_time[0],'month':max_time[1],'day':max_time[2],'hour':max_time[3],'minute':max_time[4],'second':max_time[5]}
+            tmax=datetime.datetime(**time_dict) #'2025-10-09T15:00:00')
+
+        ax.set_xlim(mdates.date2num(tmin), mdates.date2num(tmax))
+        
+        # ---- Hourly ticks ----
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.tick_params(axis='x', rotation=0, pad=15)
+        
+        # ax.grid(True)
+        
+        # ---- Plot profiles as vertical bars ----
+        width_frac = 0.10
+        
+        for xv, res in zip(xvals, results):
+        
+            xp = (xv - ax.get_xlim()[0]) / (ax.get_xlim()[1] - ax.get_xlim()[0])
+        
+            ax_in = inset_axes(
+                ax,
+                width=f"{width_frac*100:.1f}%",
+                height="100%",
+                loc='lower left',
+                bbox_to_anchor=(xp, 0.0, 1, 1),
+                bbox_transform=ax.transAxes,
+                borderpad=0,
+            )
+        
+            ax_in.plot(res['wind_as'], res['alt_as'], lw=2, color='k')
+            #ax_in.plot(res['temp_as'], res['alt_as'], lw=2, color='k')
+            ax_in.plot([xp,xp],[0,600],'--',color='gray',lw=1)
+            ax_in.set_xlim(0, 15)
+            ax_in.set_ylim(alt_min_plot, alt_max_plot)
+            ax_in.set_frame_on(False)
+        
+            ax_in.set_xticks([0, 5, 10, 15])
+        
+            ax_in.xaxis.set_ticks_position('top')
+            ax_in.xaxis.set_label_position('top')
+            ax_in.tick_params(axis='x', top=True, labeltop=True,
+            bottom=False, labelbottom=False, labelsize=10)
+            ax_in.tick_params(axis='x', labelsize=10)
+            ax_in.set_yticks([])
+            # ax_in.grid(True)
+
+
+        
+        #pdf.savefig(dpi=300)
+        plt.show()
 
 
 
 
-# Plotting ascent profiles over time 
-with PdfPages('test.pdf') as pdf:
-    fig, ax = plt.subplots(figsize=(20, 6))
-    
-    # ax.set_title('Ascent Wind Profiles over Time')
-    ax.set_xlabel('Time')
-    ax.set_ylabel('Altitude (m)')
-    
-    # ---- Y axis: 0–600 every 100 m ----
-    alt_min_plot = 0
-    alt_max_plot = 600
-    ax.set_ylim(alt_min_plot, alt_max_plot)
-    ax.set_yticks(np.arange(alt_min_plot, alt_max_plot + 1, 100))
-    
-    # ---- Build time axis ----
-    case_times = [res['case_time'] for res in results]
-    xvals = mdates.date2num(case_times)
-    
-    tmin = min(case_times).replace(minute=0, second=0, microsecond=0)
-    tmax = (max(case_times) + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-    
-    plotter = inputs['plotter']
-    if plotter['auto_time'] == False:
-        min_time = plotter['min_time']
-        time_dict = {'year':min_time[0],'month':min_time[1],'day':min_time[2],'hour':min_time[3],'minute':min_time[4],'second':min_time[5]}
-        tmin=datetime.datetime(**time_dict) #'2025-10-09T15:00:00')
 
-        max_time = plotter['max_time']
-        time_dict = {'year':max_time[0],'month':max_time[1],'day':max_time[2],'hour':max_time[3],'minute':max_time[4],'second':max_time[5]}
-        tmax=datetime.datetime(**time_dict) #'2025-10-09T15:00:00')
-
-    ax.set_xlim(mdates.date2num(tmin), mdates.date2num(tmax))
     
-    # ---- Hourly ticks ----
-    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    ax.tick_params(axis='x', rotation=0, pad=15)
-    
-    # ax.grid(True)
-    
-    # ---- Plot profiles as vertical bars ----
-    width_frac = 0.10
-    
-    for xv, res in zip(xvals, results):
-    
-        xp = (xv - ax.get_xlim()[0]) / (ax.get_xlim()[1] - ax.get_xlim()[0])
-    
-        ax_in = inset_axes(
-            ax,
-            width=f"{width_frac*100:.1f}%",
-            height="100%",
-            loc='lower left',
-            bbox_to_anchor=(xp, 0.0, 1, 1),
-            bbox_transform=ax.transAxes,
-            borderpad=0,
-        )
-    
-        ax_in.plot(res['wind_as'], res['alt_as'], lw=2, color='k')
-        #ax_in.plot(res['temp_as'], res['alt_as'], lw=2, color='k')
-        ax_in.plot([xp,xp],[0,600],'--',color='gray',lw=1)
-        ax_in.set_xlim(0, 15)
-        ax_in.set_ylim(alt_min_plot, alt_max_plot)
-        ax_in.set_frame_on(False)
-    
-        ax_in.set_xticks([0, 5, 10, 15])
-    
-        ax_in.xaxis.set_ticks_position('top')
-        ax_in.xaxis.set_label_position('top')
-        ax_in.tick_params(axis='x', top=True, labeltop=True,
-        bottom=False, labelbottom=False, labelsize=10)
-        ax_in.tick_params(axis='x', labelsize=10)
-        ax_in.set_yticks([])
-        # ax_in.grid(True)
-    
-    #pdf.savefig(dpi=300)
-    plt.show()
 
 
 
